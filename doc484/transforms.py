@@ -19,6 +19,7 @@ translations = {
     'sequence': 'Sequence',
     'iterable': 'Iterable',
     'mapping': 'Mapping',
+    'core_basestring': 'str',
 }
 
 # known_generic_types = [
@@ -26,28 +27,31 @@ translations = {
 # ]
 #
 # # Some natural language patterns that we want to support in hooks.
-# known_patterns = [
-#     ('list of ?', 'List[?]'),
+known_patterns = [
+    (r'List\((.*)\)', 'List[\\1]'),
 #     ('set of ?', 'List[?]'),
 #     ('sequence of ?', 'Sequence[?]'),
-# ]
+]
 
 union_regex = re.compile(r'(?:\s+or\s+)|(?:\s*\|\s*)')
 
-optional_regex = re.compile(r'(.*)(,\s*optional\s*$)')
+optional_regexps = [
+    re.compile(r'(.*)(,\s*optional\s*$)'),
+    re.compile(r'(.*)\|(\s*None\s*$)'),
+]
 
 
 def standardize_docstring_type(s, is_result=False):
     processed = []
-    s = _clean_type(s)
 
     if is_result:
         optional = False
     else:
         # optional
-        optional = optional_regex.search(s)
-        if optional:
-            s = optional.group(1)
+        for optional_regex in optional_regexps:
+            optional = optional_regex.search(s)
+            if optional:
+                s = optional.group(1)
 
     parts = union_regex.split(s)
     for type_str in parts:
@@ -58,6 +62,9 @@ def standardize_docstring_type(s, is_result=False):
         s = 'Union[' + ', '.join(processed) + ']'
     else:
         s = processed[0]
+
+    for regexp, replace in known_patterns:
+        s = re.sub(regexp, replace, s)
 
     if optional:
         s = 'Optional[' + s + ']'

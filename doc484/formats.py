@@ -7,7 +7,7 @@ from collections import OrderedDict
 
 from doc484.parsers import Arg
 from doc484.parsers.other import GoogleDocstring, NumpyDocstring
-from doc484.parsers.rest import RestDocstring
+from doc484.parsers.rest import RestDocstring, PycontractsDocstring
 
 if False:
     from typing import *
@@ -242,6 +242,13 @@ class RestFormat(DocstringFormat):
         return self.parser_class(docstring, self).parse()
 
 
+class PycontractsFormat(RestFormat):
+
+    name = 'pycontracts'
+
+    parser_class = PycontractsDocstring
+
+
 class NumpyFormat(DocstringFormat):
     name = 'numpy'
     sections = compile(
@@ -269,7 +276,7 @@ class GoogleFormat(DocstringFormat):
 
 
 default_format = None  # type: Optional[Type[DocstringFormat]]
-formats = [NumpyFormat, GoogleFormat, RestFormat]  # type: List[Type[DocstringFormat]]
+formats = [NumpyFormat, GoogleFormat, RestFormat, PycontractsFormat]  # type: List[Type[DocstringFormat]]
 format_map = {f.name: f for f in formats}  # type: Dict[str, Type[DocstringFormat]]
 
 

@@ -8,6 +8,7 @@ from docutils.nodes import Element, Node  # type: ignore
 from docutils.readers.standalone import Reader as _Reader
 
 from doc484.parsers import Arg
+from doc484.transforms import standardize_docstring_type
 
 if False:
     from typing import *
@@ -95,6 +96,65 @@ class RestDocstring(object):
                     continue
                 paragraph = paras[0]
                 arg = Arg(_clean_type(paragraph.astext()), paragraph.line)
+                if len(parts) == 2:
+                    # e.g. :type foo: xxxx
+                    kind, name = parts
+                    params.append((name, arg))
+                elif len(parts) == 1 and parts[0] == 'rtype':
+                    # e.g. :rtype: xxxx
+                    assert returns is None
+                    returns = [arg]
+                elif len(parts) == 1 and parts[0] == 'Yields':
+                    # e.g. converted from numpy/google format
+                    assert yields is None
+                    yields = [arg]
+
+        return params, returns, yields
+
+
+class PycontractsDocstring(object):
+
+    def __init__(self, docstring, logger):
+        self.docstring = docstring
+        self.logger = logger
+
+    def parse(self):
+        params = []
+        returns = None
+        yields = None
+
+        try:
+            document = publish_doctree(self.docstring, self.logger)
+        except SystemMessage:
+            return params, returns, yields
+
+        for field in document.traverse(condition=docutils.nodes.field):
+            field_name = field.traverse(condition=docutils.nodes.field_name)[0]
+            data = field_name.astext()
+            # data is e.g.  'type foo'
+            parts = data.strip().split()
+            if len(parts) == 1 and parts[0] == 'returns':
+                # converted google/numpy format with named results:
+                # * **result1** (*str*) -- Description of first item
+                # * **result2** (*bool*)
+                # * **result3** (*int*) -- Description of third item
+                # * *other stuff that is not return value.*
+                items = field.traverse(condition=docutils.nodes.list_item)
+                if items:
+                    assert returns is None
+                    item_types = []  # type: List[str]
+                    for item in items:
+                        text = item.astext()
+                        item_types.append(Arg(text, field.line))
+                        returns = item_types
+
+            elif len(parts) == 1 or (len(parts) == 2 and parts[0] == 'type'):
+                paras = field.traverse(condition=docutils.nodes.paragraph)
+                if not paras:
+                    continue
+                paragraph = paras[0]
+                paragraph_text = _clean_type(paragraph.astext())
+                arg = Arg(standardize_docstring_type(paragraph_text), paragraph.line)
                 if len(parts) == 2:
                     # e.g. :type foo: xxxx
                     kind, name = parts
